@@ -119,8 +119,52 @@ client.on('message', function (topic, message) {
   
 })
 
+
+//Random number generators
+
+var obj = {
+  GPS:{
+    LAT: 25.23654,
+    LON: -69.25415,
+    Speed: 52,
+    Course: 252,
+    ALT: 231.25,
+    DistFromBase:25.23,
+    DirFromBase: 235
+
+
+  },
+  ODB:{
+    Odometer: 45254.21,
+    ThrottlePos: 25,
+    EngineRunTime: 1250,
+    IntakeAir: 32,
+    CoolantTemp: 102,
+    EngineTorq: 30,
+    OilTemp: 125,
+    AirTemp: 40,
+    FuelLevel: 60,
+    VehicleSpeed: 45,
+    EngineSpeed: 3500,
+
+
+  }
+
+
+}
+
+
 setInterval(() => {
-  client.publish('/fleetTracker/Data', 'DATA DAT ADATA')
+  client.publish('/fleetTracker/Data', JSON.stringify(obj))
 }, 10000);
+
+
+const SerialPort = require('serialport')
+const Readline = require('@serialport/parser-readline')
+const port = new SerialPort('/dev/rfcomm0', {
+  baudRate: 115200
+})
+const parser = port.pipe(new Readline({ delimiter: '\r\n' }))
+parser.on('data', console.log)
 
 module.exports = app;
