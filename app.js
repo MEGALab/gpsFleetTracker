@@ -37,16 +37,32 @@ app.use(function(err, req, res, next) {
   res.status(err.status || 500);
   res.render('error');
 });
-var five = require("johnny-five");
-var board = new five.Board({
-  port: "/dev/ttyUSB0"
-});
+////var five = require("johnny-five");
+//var board = new five.Board({
+//  port: "/dev/ttyUSB0"
+//});
+
+const SerialPort = require('serialport')
+const Readline = require('@serialport/parser-readline')
+const port = new SerialPort('/dev/ttyUSB0', {
+  baudRate: 115200
+})
+
+const parser = port.pipe(new Readline({ delimiter: '\r\n' }))
+parser.on('data', function(string){
+  console.log(string)
+    //client.publish(string.toString())
+
+
+
+})
 /* GET home page. */
 
 var doorRelayUnlock
 var doorRelayLock
 var fuelPumpRelay
 var unKNownRelay
+/*
 board.on("ready", function() {
   doorRelayUnlock = new five.Relay({
     pin:9,
@@ -78,7 +94,7 @@ board.on("ready", function() {
   doorRelayLock.close()
   unKNownRelay.close()
 });
-
+*/
 var mqtt = require('mqtt')
 var client  = mqtt.connect('mqtt://localhost')
 
@@ -91,36 +107,63 @@ client.on('connect', function () {
 })
 
 client.on('message', function (topic, message) {
+  console.log(topic + ":" + message)
   // message is Buffer
   let command = message.toString()
-
-
   switch (command) {
     case 'unlock':
-      doorRelayUnlock.open()
+      //doorRelayUnlock.open()
       setTimeout(() => {
-        doorRelayUnlock.close()
+        //doorRelayUnlock.close()
         client.publish('/fleetTracker/Doors', 'unLocked')
-       
       }, 1000);
       break;
       case 'lock':
-        doorRelayLock.open()
+        //doorRelayLock.open()
         setTimeout(() => {
-          doorRelayLock.close()
+          //doorRelayLock.close()
           client.publish('/fleetTracker/Doors', 'Locked')
           
         }, 1000);
         break;
-    
-     
   }
   console.log(message.toString())
-  
 })
+var obj = {
+  GPS:{
+    LAT: 25.23654,
+    LON: -69.25415,
+    Speed: 52,
+    Course: 252,
+    ALT: 231.25,
+    DistFromBase:25.23,
+    DirFromBase: 235
+
+
+  },
+  ODB:{
+    Odometer: 45254.21,
+    ThrottlePos: 25,
+    EngineRunTime: 1250,
+    IntakeAir: 32,
+    CoolantTemp: 102,
+    EngineTorq: 30,
+    OilTemp: 125,
+    AirTemp: 40,
+    FuelLevel: 60,
+    VehicleSpeed: 45,
+    EngineSpeed: 3500,
+
+
+  }
+
+
+}
+
 
 setInterval(() => {
-  client.publish('/fleetTracker/Data', 'DATA DAT ADATA')
+  client.publish('/fleetTracker/Data', JSON.stringify(obj))
 }, 10000);
+
 
 module.exports = app;

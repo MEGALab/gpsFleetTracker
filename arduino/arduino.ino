@@ -60,49 +60,55 @@ void setup()
   Serial.println(signalQuality);
 }
 
-static bool messageSent = false;
-
+unsigned long previousMillis = 0;
+const long interval = 3600000;
 void loop()
 {
+  unsigned long currentMillis = millis();
   int err;
   int signalQuality = -1;
   modem.getSignalQuality(signalQuality);
-  Serial.println(signalQuality);
+
   // Read/Write the first time or if there are any remaining messages
-  if (!messageSent || modem.getWaitingMessageCount() > 0)
+  if (signalQuality > 1 || modem.getWaitingMessageCount() > 0)
   {
-    size_t bufferSize = sizeof(buffer);
-
-    // First time through send+receive; subsequent loops receive only
-    if (!messageSent)
-      err = modem.sendReceiveSBDText(NULL, buffer, bufferSize);
-    else
-      err = modem.sendReceiveSBDText(NULL, buffer, bufferSize);
-
-    if (err != ISBD_SUCCESS)
+    if (currentMillis - previousMillis >= interval || modem.getWaitingMessageCount() > 0)
     {
-      Serial.print("sendReceiveSBD* failed: error ");
-      Serial.println(err);
-    }
-    else // success!
-    {
-      messageSent = true;
-      Serial.print("Inbound buffer size is ");
-      Serial.println(bufferSize);
-      for (int i = 0; i < bufferSize; ++i)
+      previousMillis = currentMillis;
+      size_t bufferSize = sizeof(buffer);
+
+      // First time through send+receive; subsequent loops receive only
+
+      err = modem.sendReceiveSBDText(NULL, buffer, bufferSize);
+
+      if (err != ISBD_SUCCESS)
       {
-        Serial.print(buffer[i], HEX);
-        if (isprint(buffer[i]))
-        {
-          Serial.print("(");
-          Serial.write(buffer[i]);
-          Serial.print(")");
-        }
-        Serial.print(" ");
+        Serial.print("sendReceiveSBD* failed: error ");
+        Serial.println(err);
       }
-      Serial.println();
-      Serial.print("Messages remaining to be retrieved: ");
-      Serial.println(modem.getWaitingMessageCount());
+      else // success!
+      {
+
+        Serial.print("Inbound buffer size is ");
+        Serial.println(bufferSize);
+        for (int i = 0; i < bufferSize; ++i)
+        {
+          Serial.print(buffer[i], HEX);
+          if (isprint(buffer[i]))
+          {
+            Serial.print("(");
+            Serial.write(buffer[i]);
+            Serial.print(")");
+          }
+          Serial.print(" ");
+        }
+        Serial.println();
+        String str = (char *)buffer;
+
+        Serial.println(str);
+        Serial.print("Messages remaining to be retrieved: ");
+        Serial.println(modem.getWaitingMessageCount());
+      }
     }
   }
 }
