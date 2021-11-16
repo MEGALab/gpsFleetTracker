@@ -1,6 +1,6 @@
 
 #include <IridiumSBD.h>
-
+#include <SoftwareSerial.h>
 /*
  * Ring
  * 
@@ -17,25 +17,23 @@
  * This sketch assumes the RING pin is connected to Arduino pin 5
  * 
  */
-#include <SoftwareSerial.h>
-#include <TinyGPSPlus.h>
+
 SoftwareSerial mySerial(7, 8);  // RX, TX
-SoftwareSerial gpsSerial(5, 6); // RX, TX
+
 #define IridiumSerial mySerial
 #define RING_PIN 4
 #define DIAGNOSTICS false // Change this to see diagnostics
 
 IridiumSBD modem(IridiumSerial);
-const uint32_t GPSBaud = 9600; //Default baud of NEO-6M is 9600
-
-TinyGPSPlus gps; // the TinyGPS++ object
+String inputString = "";         // a String to hold incoming data
+bool stringComplete = false;
 void setup()
 {
     int signalQuality = -1;
 
     // Start the serial ports
     Serial.begin(115200);
-    gpsSerial.begin(GPSBaud);
+   
 
     while (!Serial)
         ;
@@ -62,70 +60,15 @@ void setup()
     Serial.println(signalQuality);
     Serial.println("Begin waiting for RING...");
     pinMode(4, INPUT);
+    inputString.reserve(400);
 }
-int messageReceived = 0;
+
 
 void loop()
 {
 
-    if (gpsSerial.available() > 0)
-    {
-        if (gps.encode(gpsSerial.read()))
-        {
-            if (gps.location.isValid())
-            {
-                Serial.print(F("- latitude: "));
-                Serial.println(gps.location.lat());
 
-                Serial.print(F("- longitude: "));
-                Serial.println(gps.location.lng());
-
-                Serial.print(F("- altitude: "));
-                if (gps.altitude.isValid())
-                    Serial.println(gps.altitude.meters());
-                else
-                    Serial.println(F("INVALID"));
-            }
-            else
-            {
-                Serial.println(F("- location: INVALID"));
-            }
-
-            Serial.print(F("- speed: "));
-            if (gps.speed.isValid())
-            {
-                Serial.print(gps.speed.kmph());
-                Serial.println(F(" km/h"));
-            }
-            else
-            {
-                Serial.println(F("INVALID"));
-            }
-
-            Serial.print(F("- GPS date&time: "));
-            if (gps.date.isValid() && gps.time.isValid())
-            {
-                Serial.print(gps.date.year());
-                Serial.print(F("-"));
-                Serial.print(gps.date.month());
-                Serial.print(F("-"));
-                Serial.print(gps.date.day());
-                Serial.print(F(" "));
-                Serial.print(gps.time.hour());
-                Serial.print(F(":"));
-                Serial.print(gps.time.minute());
-                Serial.print(F(":"));
-                Serial.println(gps.time.second());
-            }
-            else
-            {
-                Serial.println(F("INVALID"));
-            }
-
-            Serial.println();
-        }
-    }
-
+   
     static int err = ISBD_SUCCESS;
 
     if (digitalRead(4) == 0 || modem.getWaitingMessageCount() > 0)
@@ -142,35 +85,53 @@ void loop()
         err = modem.sendReceiveSBDText(NULL, buffer, bufferSize);
         if (err != ISBD_SUCCESS)
         {
-            Serial.print("sendReceiveSBDBinary failed: error ");
-            Serial.println(err);
+            
             return;
         }
 
-        Serial.println("Message received!");
-        Serial.print("Inbound message size is ");
-        Serial.println(bufferSize);
+       
         for (int i = 0; i < (int)bufferSize; ++i)
         {
-            Serial.print(buffer[i], HEX);
+            
             if (isprint(buffer[i]))
             {
-                Serial.print("(");
-                Serial.write(buffer[i]);
-                Serial.print(")");
+                
             }
-            Serial.print(" ");
+           
         }
-        Serial.println("Message:");
+        
 
         String str = (char *)buffer;
-
+        Serial.print("message:");
         Serial.println(str);
-        Serial.print("Messages remaining to be retrieved: ");
-        Serial.println(modem.getWaitingMessageCount());
+        
     }
-}
 
+    if (stringComplete) {
+    //Serial.println(inputString);
+    uint8_t buffer[200];
+        size_t bufferSize = sizeof(buffer);
+        char Buf[50];
+    inputString.toCharArray(Buf, 50);
+    modem.sendSBDText(Buf);
+    // clear the string:
+    inputString = "";
+    stringComplete = false;
+  }
+}
+void serialEvent() {
+  while (Serial.available()) {
+    // get the new byte:
+    char inChar = (char)Serial.read();
+    // add it to the inputString:
+    inputString += inChar;
+    // if the incoming character is a newline, set a flag so the main loop can
+    // do something about it:
+    if (inChar == '\n') {
+      stringComplete = true;
+    }
+  }
+}
 #if DIAGNOSTICS
 void ISBDConsoleCallback(IridiumSBD *device, char c)
 {
