@@ -48,11 +48,47 @@ const Readline = require('@serialport/parser-readline')
 const port = new SerialPort('/dev/ttyUSB0', {
  baudRate: 115200
 })
+const gpsport = new SerialPort('/dev/ttyACM0', {
+ baudRate: 9600
+})
+
+var GPS = require('gps');
+var gps = new GPS;
 
 const parser = port.pipe(new Readline({ delimiter: '\r\n' }))
+const gpsparser = gpsport.pipe(new Readline({ delimiter: '\r\n' }))
+gpsparser.on('data', function(gpsstring){
+  gps.update(gpsstring)
+
+
+})
+var GPS = require('/home/pi/fleetTracker/node_modules/gps/gps.js');
+var angles = require('angles');
+var prevLat
+var prevLon
+var gpsData = {}
+gpsData['state'] = {}
+gps.on('data', function() {
+
+
+ prevLat = gps.state.lat
+ prevLon = gps.state.lon
+ 
+ var head = GPS.Heading(gps.state.lat, gps.state.lat, prevLat, prevLon);
+  var rose = angles.compass(head);
+  gps.state['head'] = head
+  gps.state['rose'] = rose
+  gps.state['distBase'] = GPS.Distance(gps.state.lat, gps.state.lon, 38.441438, -78.881344)
+  gps.state['dirBase'] = GPS.Heading(gps.state.lat, gps.state.lat, 38.441438, -78.881344)
+
+  gpsData.state = gps.state
+});
+
 parser.on('data', function(string){
   console.log(string)
-    client.publish(string)
+  
+
+  
 
 
 
@@ -63,16 +99,34 @@ var doorRelayUnlock
 var doorRelayLock
 var fuelPumpRelay
 var unKNownRelay
-var gps
+  var obj = {
+  GPS:{
+    Time: '',
+    LAT: '',
+    LON: '',
+    Speed:'',
+    Course:'',
+    ALT: '',
+    DistFromBase:'',
+    DirFromBase:''
+  },
+  ODB:{
+    Odometer: '',
+    ThrottlePos: '',
+    EngineRunTime: '',
+    IntakeAir: '',
+    CoolantTemp: '',
+    EngineTorq: '',
+    OilTemp: '',
+    AirTemp: '',
+    FuelLevel: '',
+    VehicleSpeed: '',
+    EngineSpeed: '',
+  }
+}
 board.on("ready", function() {
 
-   gps = new five.GPS({
-    baud: 9600,
-    pins: {
-      rx: 5,
-      tx: 6,
-    }
-  });
+
   doorRelayUnlock = new five.Relay({
     pin:12,
     type: "NO"
@@ -102,12 +156,7 @@ board.on("ready", function() {
   fuelPumpRelay.close()
   doorRelayLock.open()
   unKNownRelay.open()
-  gps.on('operations', function(msg){
 
-    console.log(msg)
-    
-    
-    })
 });
 
 var mqtt = require('mqtt')
@@ -134,7 +183,18 @@ client.on('message', function (topic, message) {
   console.log(topic + ":" + message)
   // message is Buffer
   let command = message.toString()
-  if(topic==='/fleetTracker/Pump'){
+  if(topic==='/fleetTracker/data'){
+    switch (command) {
+      case 'location':
+        client.publish('/fleetTracker/data/location', obj.GPS)
+        break;
+      case 'obd':
+         client.publish('/fleetTracker/data/obd',obj.OBD )
+        break;
+  
+    }
+  }
+  if(topic==='/fleetTracker/Doors'){
     switch (command) {
       case 'unlock':
         doorRelayUnlock.close()
@@ -156,12 +216,12 @@ client.on('message', function (topic, message) {
   }
   if(topic==='/fleetTracker/Pump'){
     switch (command) {
-      case 'pumpOn':
+      case 'On':
         fuelPumpRelay.close()
         client.publish('/fleetTracker/Pump', 'On')
         
         break;
-      case 'pumpOff':
+      case 'Off':
           fuelPumpRelay.open()
           client.publish('/fleetTracker/Pump', 'Off')
           
@@ -170,34 +230,13 @@ client.on('message', function (topic, message) {
   }   
   console.log(message.toString())
 })
-var obj = {
-  GPS:{
-    LAT: 25.23654,
-    LON: -69.25415,
-    Speed: 52,
-    Course: 252,
-    ALT: 231.25,
-    DistFromBase:25.23,
-    DirFromBase: 235
-  },
-  ODB:{
-    Odometer: 45254.21,
-    ThrottlePos: 25,
-    EngineRunTime: 1250,
-    IntakeAir: 32,
-    CoolantTemp: 102,
-    EngineTorq: 30,
-    OilTemp: 125,
-    AirTemp: 40,
-    FuelLevel: 60,
-    VehicleSpeed: 45,
-    EngineSpeed: 3500,
-  }
 
 
-}
 
-require('dns').resolve('www.google.com', function(err) {
+
+
+
+require('dns').resolve('', function(err) {
   if (err) {
      console.log("No connection");
   } else {
@@ -206,6 +245,31 @@ require('dns').resolve('www.google.com', function(err) {
 });
 
 setInterval(() => {
+
+  
+    obj.GPS.Time= gpsData.state.time,
+    obj.GPS.LAT= gpsData.state.lat,
+    obj.GPS.LON= gpsData.state.lon,
+    obj.GPS.Speed= gpsData.state.speed,
+    obj.GPS.Course= gpsData.state.head,
+    obj.GPS.ALT= gpsData.state.alt,
+    obj.GPS.DistFromBase=gpsData.state.distBase,
+    obj.GPS.DirFromBase= gpsData.state.dirBase
+
+
+    obj.ODB.Odometer= 45254.21,
+    obj.ODB.ThrottlePos= 25,
+    obj.ODB.EngineRunTime= 1250,
+    obj.ODB.IntakeAir= 32,
+    obj.ODB.CoolantTemp= 102,
+    obj.ODB.EngineTorq= 30,
+    obj.ODB.OilTemp= 125,
+    obj.ODB.AirTemp= 40,
+    obj.ODB.FuelLevel= 60,
+    obj.ODB.VehicleSpeed= 45,
+    obj.ODB.EngineSpeed= 3500,
+  
+
   client.publish('/fleetTracker/Data', JSON.stringify(obj))
 }, 10000);
 

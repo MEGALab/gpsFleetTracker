@@ -1,6 +1,5 @@
-
 #include <IridiumSBD.h>
-#include <SoftwareSerial.h>
+
 /*
  * Ring
  * 
@@ -18,26 +17,23 @@
  * 
  */
 
-SoftwareSerial mySerial(7, 8);  // RX, TX
+#include <SoftwareSerial.h>
 
-#define IridiumSerial mySerial
+SoftwareSerial mySerial(7, 8); // RX, TX
+#define DIAGNOSTICS false      // Change this to see diagnostics
 #define RING_PIN 4
-#define DIAGNOSTICS false // Change this to see diagnostics
 
-IridiumSBD modem(IridiumSerial);
-String inputString = "";         // a String to hold incoming data
-bool stringComplete = false;
+IridiumSBD modem(mySerial, -1, RING_PIN);
+
 void setup()
 {
     int signalQuality = -1;
 
     // Start the serial ports
     Serial.begin(115200);
-   
-
     while (!Serial)
         ;
-    IridiumSerial.begin(19200);
+    mySerial.begin(19200);
 
     // Setup the Iridium modem
     modem.setPowerProfile(IridiumSBD::USB_POWER_PROFILE);
@@ -60,18 +56,13 @@ void setup()
     Serial.println(signalQuality);
     Serial.println("Begin waiting for RING...");
     pinMode(4, INPUT);
-    inputString.reserve(400);
 }
-
 
 void loop()
 {
-
-
-   
     static int err = ISBD_SUCCESS;
-
-    if (digitalRead(4) == 0 || modem.getWaitingMessageCount() > 0)
+    bool ring = modem.hasRingAsserted();
+    if (digitalRead(4) == 0 || modem.getWaitingMessageCount() > 0 || err != ISBD_SUCCESS)
     {
         if (digitalRead(4) == 0)
             Serial.println("RING asserted!  Let's try to read the incoming message.");
@@ -85,53 +76,16 @@ void loop()
         err = modem.sendReceiveSBDText(NULL, buffer, bufferSize);
         if (err != ISBD_SUCCESS)
         {
-            
+            Serial.print("sendReceiveSBDBinary failed: error ");
+            Serial.println(err);
             return;
         }
-
-       
-        for (int i = 0; i < (int)bufferSize; ++i)
-        {
-            
-            if (isprint(buffer[i]))
-            {
-                
-            }
-           
-        }
-        
-
         String str = (char *)buffer;
         Serial.print("message:");
         Serial.println(str);
-        
     }
+}
 
-    if (stringComplete) {
-    //Serial.println(inputString);
-    uint8_t buffer[200];
-        size_t bufferSize = sizeof(buffer);
-        char Buf[50];
-    inputString.toCharArray(Buf, 50);
-    modem.sendSBDText(Buf);
-    // clear the string:
-    inputString = "";
-    stringComplete = false;
-  }
-}
-void serialEvent() {
-  while (Serial.available()) {
-    // get the new byte:
-    char inChar = (char)Serial.read();
-    // add it to the inputString:
-    inputString += inChar;
-    // if the incoming character is a newline, set a flag so the main loop can
-    // do something about it:
-    if (inChar == '\n') {
-      stringComplete = true;
-    }
-  }
-}
 #if DIAGNOSTICS
 void ISBDConsoleCallback(IridiumSBD *device, char c)
 {
