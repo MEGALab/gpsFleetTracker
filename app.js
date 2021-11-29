@@ -52,6 +52,7 @@ const gpsport = new SerialPort('/dev/ttyACM0', {
  baudRate: 9600
 })
 
+
 var GPS = require('gps');
 var gps = new GPS;
 
@@ -80,18 +81,12 @@ gps.on('data', function() {
   gps.state['rose'] = rose
   gps.state['distBase'] = GPS.Distance(gps.state.lat, gps.state.lon, 38.441438, -78.881344)
   gps.state['dirBase'] = GPS.Heading(gps.state.lat, gps.state.lat, 38.441438, -78.881344)
-
   gpsData.state = gps.state
+  
 });
 
 parser.on('data', function(string){
   console.log(string)
-  
-
-  
-
-
-
 })
 /* GET home page. */
 
@@ -163,19 +158,25 @@ var mqtt = require('mqtt')
 var client  = mqtt.connect('mqtt://localhost')
 
 client.on('connect', function () {
-
-  client.publish('/fleetTracker/Jeep', 'Alpha-One Online')
-  client.subscribe('/fleetTracker/Doors', function (err) {
+console.log("conected MQTT");
+  client.publish('/fleetTracker/AlphaOne/Jeep', 'Alpha-One Online')
+  
+  
+  
+  client.subscribe('/fleetTracker/AlphaOne/Doors', function (err) {
     if (!err) {
       
     }
   })
-  client.subscribe('/fleetTracker/Pump', function (err) {
+  client.subscribe('/fleetTracker/AlphaOne/Pump', function (err) {
     if (!err) {
       
     }
   })
 })
+
+
+
 
 
 
@@ -186,10 +187,10 @@ client.on('message', function (topic, message) {
   if(topic==='/fleetTracker/data'){
     switch (command) {
       case 'location':
-        client.publish('/fleetTracker/data/location', obj.GPS)
+        client.publish('/fleetTracker/AlphaOne/data/location', obj.GPS)
         break;
       case 'obd':
-         client.publish('/fleetTracker/data/obd',obj.OBD )
+         client.publish('/fleetTracker/AlphaOne/data/obd',obj.OBD )
         break;
   
     }
@@ -200,30 +201,30 @@ client.on('message', function (topic, message) {
         doorRelayUnlock.close()
         setTimeout(() => {
           doorRelayUnlock.open()
-          client.publish('/fleetTracker/Doors', 'unLocked')
+          client.publish('/fleetTracker/AlphaOne/Doors', 'unLocked')
         }, 1000);
         break;
       case 'lock':
         doorRelayLock.close()
         setTimeout(() => {
           doorRelayLock.open()
-          client.publish('/fleetTracker/Doors', 'Locked')
+          client.publish('/fleetTracker/AlphaOne/Doors', 'Locked')
             
         }, 1000);
         break;
   
     }
   }
-  if(topic==='/fleetTracker/Pump'){
+  if(topic==='/fleetTracker/AlphaOne/Pump'){
     switch (command) {
       case 'On':
         fuelPumpRelay.close()
-        client.publish('/fleetTracker/Pump', 'On')
+        client.publish('/fleetTracker/AlphaOne/Pump', 'On')
         
         break;
       case 'Off':
           fuelPumpRelay.open()
-          client.publish('/fleetTracker/Pump', 'Off')
+          client.publish('/fleetTracker/AlphaOne/Pump', 'Off')
           
         break; 
     }
@@ -236,7 +237,7 @@ client.on('message', function (topic, message) {
 
 
 
-require('dns').resolve('', function(err) {
+require('dns').resolve('google.com', function(err) {
   if (err) {
      console.log("No connection");
   } else {
@@ -270,7 +271,7 @@ setInterval(() => {
     obj.ODB.EngineSpeed= 3500,
   
 
-  client.publish('/fleetTracker/Data', JSON.stringify(obj))
+  client.publish('/fleetTracker/AlphaOne/Data', JSON.stringify(obj))
 }, 10000);
 
 
