@@ -67,27 +67,12 @@ var GPS = require('/home/pi/fleetTracker/node_modules/gps/gps.js');
 var angles = require('angles');
 var prevLat
 var prevLon
+var online = 0;
 var gpsData = {}
 gpsData['state'] = {}
-gps.on('data', function() {
 
 
- prevLat = gps.state.lat
- prevLon = gps.state.lon
- 
- var head = GPS.Heading(gps.state.lat, gps.state.lat, prevLat, prevLon);
-  var rose = angles.compass(head);
-  gps.state['head'] = head
-  gps.state['rose'] = rose
-  gps.state['distBase'] = GPS.Distance(gps.state.lat, gps.state.lon, 38.441438, -78.881344)
-  gps.state['dirBase'] = GPS.Heading(gps.state.lat, gps.state.lat, 38.441438, -78.881344)
-  gpsData.state = gps.state
-  
-});
 
-parser.on('data', function(string){
-  console.log(string)
-})
 /* GET home page. */
 
 var doorRelayUnlock
@@ -161,7 +146,7 @@ client.on('connect', function () {
 console.log("conected MQTT");
   client.publish('/fleetTracker/AlphaOne/Jeep', 'Alpha-One Online')
   
-  
+
   
   client.subscribe('/fleetTracker/AlphaOne/Doors', function (err) {
     if (!err) {
@@ -173,35 +158,99 @@ console.log("conected MQTT");
       
     }
   })
+   client.subscribe('/fleetTracker/AlphaOne/data', function (err) {
+    if (!err) {
+      
+    }
+  })
 })
 
 
+  parser.on('data', function(string){
+  var cleanBuffer = string.split("#")
+  var splitString = cleanBuffer[0].split(",")
+  console.log(splitString[0])
+  console.log(splitString[1])
+  client.publish(splitString[0],splitString[1])
+})
+
+gps.on('data', function() {
 
 
-
+ prevLat = gps.state.lat
+ prevLon = gps.state.lon
+ 
+ var head = GPS.Heading(gps.state.lat, gps.state.lat, prevLat, prevLon);
+  var rose = angles.compass(head);
+  gps.state['head'] = head
+  gps.state['rose'] = rose
+  gps.state['distBase'] = GPS.Distance(gps.state.lat, gps.state.lon, 38.441438, -78.881344)
+  gps.state['dirBase'] = GPS.Heading(gps.state.lat, gps.state.lat, 38.441438, -78.881344)
+  gpsData.state = gps.state
+  
+});
 
 client.on('message', function (topic, message) {
   console.log(topic + ":" + message)
   // message is Buffer
   let command = message.toString()
-  if(topic==='/fleetTracker/data'){
+  if(topic==='/fleetTracker/AlphaOne/data'){
     switch (command) {
       case 'location':
-        client.publish('/fleetTracker/AlphaOne/data/location', obj.GPS)
+         obj.GPS.Jeep='AlphaOne',
+    obj.GPS.Time= gpsData.state.time,
+    obj.GPS.LAT= gpsData.state.lat,
+    obj.GPS.LON= gpsData.state.lon,
+    obj.GPS.Speed= gpsData.state.speed,
+    obj.GPS.Course= gpsData.state.head,
+    obj.GPS.ALT= gpsData.state.alt,
+    obj.GPS.DistFromBase=gpsData.state.distBase,
+    obj.GPS.DirFromBase= gpsData.state.dirBase
+    
+        client.publish('/fleetTracker/AlphaOne/data/location', JSON.stringify(obj.GPS))
+         if(online === 0){
+          //SEND IRRIDIUM
+          port.write(JSON.stringify(obj.GPS))
+          port.write('\n')
+        }
         break;
       case 'obd':
-         client.publish('/fleetTracker/AlphaOne/data/obd',obj.OBD )
+        obj.ODB.Jeep = 'AlphaOne',
+    obj.ODB.Odometer= 45254.21,
+    obj.ODB.ThrottlePos= 25,
+    obj.ODB.EngineRunTime= 1250,
+    obj.ODB.IntakeAir= 32,
+    obj.ODB.CoolantTemp= 102,
+    obj.ODB.EngineTorq= 30,
+    obj.ODB.OilTemp= 125,
+    obj.ODB.AirTemp= 40,
+    obj.ODB.FuelLevel= 60,
+    obj.ODB.VehicleSpeed= 45,
+    obj.ODB.EngineSpeed= 3500,
+         client.publish('/fleetTracker/AlphaOne/data/obd',JSON.stringify(obj.ODB) )
+          if(online === 0){
+          //SEND IRRIDIUM
+          port.write(JSON.stringify(obj.ODB))
+          port.write('\n')
+
+        }
         break;
   
     }
   }
-  if(topic==='/fleetTracker/Doors'){
+  if(topic==='/fleetTracker/AlphaOne/Doors'){
     switch (command) {
       case 'unlock':
         doorRelayUnlock.close()
         setTimeout(() => {
           doorRelayUnlock.open()
           client.publish('/fleetTracker/AlphaOne/Doors', 'unLocked')
+           if(online === 0){
+          //SEND IRRIDIUM
+          port.write('/fleetTracker/AlphaOne/Doors', 'unLocked')
+          port.write('\n')
+
+        }
         }, 1000);
         break;
       case 'lock':
@@ -209,7 +258,12 @@ client.on('message', function (topic, message) {
         setTimeout(() => {
           doorRelayLock.open()
           client.publish('/fleetTracker/AlphaOne/Doors', 'Locked')
-            
+             if(online === 0){
+           port.write('/fleetTracker/AlphaOne/Doors', 'Locked')
+          port.write('\n')
+
+
+        }
         }, 1000);
         break;
   
@@ -220,12 +274,22 @@ client.on('message', function (topic, message) {
       case 'On':
         fuelPumpRelay.close()
         client.publish('/fleetTracker/AlphaOne/Pump', 'On')
-        
+        if(online === 0){
+          port.write('/fleetTracker/AlphaOne/Pump', 'On')
+          port.write('\n')
+
+
+        }
         break;
       case 'Off':
           fuelPumpRelay.open()
           client.publish('/fleetTracker/AlphaOne/Pump', 'Off')
-          
+           if(online === 0){
+         port.write('/fleetTracker/AlphaOne/Pump', 'Off')
+          port.write('\n')
+
+
+        }
         break; 
     }
   }   
@@ -236,18 +300,23 @@ client.on('message', function (topic, message) {
 
 
 
+setInterval(() => {
+  require('dns').resolve('google.com', function(err) {
+    if (err) {
+      online = 0;
+      console.log("No connection");
+      
+    } else {
+      online = 0;
+      console.log("Connected");
+      
+    }
+  });
+}, 60000);
 
-require('dns').resolve('google.com', function(err) {
-  if (err) {
-     console.log("No connection");
-  } else {
-     console.log("Connected");
-  }
-});
 
 setInterval(() => {
-
-  
+  obj.GPS.Jeep='AlphaOne',
     obj.GPS.Time= gpsData.state.time,
     obj.GPS.LAT= gpsData.state.lat,
     obj.GPS.LON= gpsData.state.lon,
@@ -256,8 +325,7 @@ setInterval(() => {
     obj.GPS.ALT= gpsData.state.alt,
     obj.GPS.DistFromBase=gpsData.state.distBase,
     obj.GPS.DirFromBase= gpsData.state.dirBase
-
-
+    obj.ODB.Jeep = 'AlphaOne',
     obj.ODB.Odometer= 45254.21,
     obj.ODB.ThrottlePos= 25,
     obj.ODB.EngineRunTime= 1250,
@@ -270,9 +338,8 @@ setInterval(() => {
     obj.ODB.VehicleSpeed= 45,
     obj.ODB.EngineSpeed= 3500,
   
-
   client.publish('/fleetTracker/AlphaOne/Data', JSON.stringify(obj))
-}, 10000);
+}, 100000);
 
 
 module.exports = app;

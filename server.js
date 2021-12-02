@@ -7,4 +7,11 @@ const port = new SerialPort('/dev/ttyUSB0', {
 const parser = port.pipe(new Readline({ delimiter: '\r\n' }))
 
 
-parser.on('data', console.log)
+port.on('data', function(data){
+  console.log(data.toString())
+})
+port.write("ATSP0")
+
+setTimeout(() => {
+  
+}, 3000);

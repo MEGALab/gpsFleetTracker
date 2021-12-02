@@ -24,7 +24,8 @@ SoftwareSerial mySerial(7, 8); // RX, TX
 #define RING_PIN 4
 
 IridiumSBD modem(mySerial, -1, RING_PIN);
-
+String inputString = ""; // a String to hold incoming data
+bool stringComplete = false;
 void setup()
 {
     int signalQuality = -1;
@@ -60,6 +61,25 @@ void setup()
 
 void loop()
 {
+    if (stringComplete)
+    {
+        // Define
+
+        // Length (with one extra character for the null terminator)
+        int str_len = inputString.length() + 1;
+
+        // Prepare the character array (the buffer)
+        char char_array[str_len];
+
+        // Copy it over
+        inputString.toCharArray(char_array, str_len);
+        modem.sendSBDText(char_array);
+        Serial.println(inputString);
+
+        // clear the string:
+        inputString = "";
+        stringComplete = false;
+    }
     static int err = ISBD_SUCCESS;
     bool ring = modem.hasRingAsserted();
     if (digitalRead(4) == 0 || modem.getWaitingMessageCount() > 0 || err != ISBD_SUCCESS)
@@ -71,7 +91,7 @@ void loop()
         else
             Serial.println("Let's try again.");
 
-        uint8_t buffer[200];
+        uint8_t buffer[50];
         size_t bufferSize = sizeof(buffer);
         err = modem.sendReceiveSBDText(NULL, buffer, bufferSize);
         if (err != ISBD_SUCCESS)
@@ -80,8 +100,8 @@ void loop()
             Serial.println(err);
             return;
         }
+
         String str = (char *)buffer;
-        Serial.print("message:");
         Serial.println(str);
     }
 }
@@ -97,3 +117,19 @@ void ISBDDiagsCallback(IridiumSBD *device, char c)
     Serial.write(c);
 }
 #endif
+void serialEvent()
+{
+    while (Serial.available())
+    {
+        // get the new byte:
+        char inChar = (char)Serial.read();
+        // add it to the inputString:
+        inputString += inChar;
+        // if the incoming character is a newline, set a flag so the main loop can
+        // do something about it:
+        if (inChar == '\n')
+        {
+            stringComplete = true;
+        }
+    }
+}
